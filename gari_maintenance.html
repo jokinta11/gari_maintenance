@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gari Maintenance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e1012; --bg2: #161a1d; --bg3: #1d2226;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.15);
+    --text: #e8e6e1; --text2: #8a8882; --text3: #555350;
+    --green: #4ade9a; --blue: #4a9ede; --orange: #e8824a;
+    --red: #e84a4a; --yellow: #facc15; --purple: #c084fc;
+    --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; padding: 1.5rem; }
+
+  /* HEADER */
+  .header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--border); }
+  .farm-label { font-family: var(--mono); font-size: 10px; color: var(--green); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 6px; }
+  h1 { font-size: 24px; font-weight: 300; letter-spacing: -0.02em; }
+  .status-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .status-text { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .refresh-btn { font-family: var(--mono); font-size: 11px; color: var(--text2); background: var(--bg3); border: 0.5px solid var(--border2); padding: 8px 16px; border-radius: 6px; cursor: pointer; transition: color 0.15s; }
+  .refresh-btn:hover { color: var(--text); }
+
+  /* SUMMARY */
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 2rem; }
+  .summary-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 10px; padding: 1rem; position: relative; overflow: hidden; }
+  .summary-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent); }
+  .summary-label { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .summary-value { font-size: 28px; font-weight: 300; letter-spacing: -0.03em; }
+
+  /* SECTION */
+  .section-label { font-family: var(--mono); font-size: 11px; color: var(--text2); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 12px; }
+  .card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 10px; padding: 1.5rem; margin-bottom: 12px; position: relative; overflow: hidden; }
+  .card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); }
+  .card-title { font-size: 16px; font-weight: 400; margin-bottom: 1rem; }
+
+  /* TASKS */
+  .tasks { display: flex; flex-direction: column; gap: 10px; margin-bottom: 2rem; }
+  .task-card { background: var(--bg2); border: 0.5px solid var(--border); border-radius: 10px; padding: 1.25rem; position: relative; overflow: hidden; transition: border-color 0.2s; }
+  .task-card:hover { border-color: var(--border2); }
+  .task-card::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); }
+  .task-top { display: flex; align-items: center; gap: 1rem; }
+  .task-icon { font-size: 24px; flex-shrink: 0; }
+  .task-info { flex: 1; min-width: 0; }
+  .task-name { font-size: 15px; font-weight: 400; margin-bottom: 4px; }
+  .task-meta { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+  .task-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+  .badge { font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
+  .badge-ok { background: rgba(74,222,154,0.12); color: var(--green); }
+  .badge-soon { background: rgba(250,204,21,0.12); color: var(--yellow); }
+  .badge-due { background: rgba(232,130,74,0.15); color: var(--orange); }
+  .badge-overdue { background: rgba(232,74,74,0.15); color: var(--red); }
+  .done-btn { font-family: var(--mono); font-size: 11px; padding: 6px 14px; border-radius: 6px; border: 0.5px solid var(--border2); background: var(--bg3); color: var(--text2); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .done-btn:hover { background: var(--green); color: #0e1012; border-color: var(--green); }
+  .done-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .progress-bar { height: 3px; background: var(--bg3); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+  .task-history-toggle { font-family: var(--mono); font-size: 10px; color: var(--text3); cursor: pointer; margin-top: 8px; display: inline-block; letter-spacing: 0.05em; }
+  .task-history-toggle:hover { color: var(--text2); }
+  .task-history { display: none; margin-top: 10px; padding-top: 10px; border-top: 0.5px solid var(--border); }
+  .task-history.open { display: block; }
+  .history-row { font-family: var(--mono); font-size: 11px; color: var(--text2); padding: 4px 0; display: flex; justify-content: space-between; border-bottom: 0.5px solid var(--border); }
+  .history-row:last-child { border-bottom: none; }
+
+  /* HARVEST */
+  .harvest-countdown { font-size: 56px; font-weight: 300; color: var(--purple); letter-spacing: -0.04em; line-height: 1; margin-bottom: 6px; }
+  .harvest-label { font-family: var(--mono); font-size: 11px; color: var(--text2); margin-bottom: 1rem; }
+  .harvest-input-row { display: flex; gap: 8px; }
+  .harvest-input { flex: 1; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: 6px; padding: 8px 12px; color: var(--text); font-family: var(--mono); font-size: 12px; outline: none; }
+  .harvest-input:focus { border-color: var(--purple); }
+  .harvest-set-btn { font-family: var(--mono); font-size: 11px; padding: 8px 16px; border-radius: 6px; border: 0.5px solid var(--purple); background: rgba(192,132,252,0.1); color: var(--purple); cursor: pointer; transition: all 0.15s; }
+  .harvest-set-btn:hover { background: var(--purple); color: #0e1012; }
+
+  /* pH */
+  .ph-input-row { display: flex; gap: 8px; margin-bottom: 1rem; }
+  .ph-input { flex: 1; background: var(--bg3); border: 0.5px solid var(--border2); border-radius: 6px; padding: 8px 12px; color: var(--text); font-family: var(--mono); font-size: 13px; outline: none; }
+  .ph-input:focus { border-color: var(--yellow); }
+  .ph-log-btn { font-family: var(--mono); font-size: 11px; padding: 8px 16px; border-radius: 6px; border: 0.5px solid var(--yellow); background: rgba(250,204,21,0.1); color: var(--yellow); cursor: pointer; transition: all 0.15s; }
+  .ph-log-btn:hover { background: var(--yellow); color: #0e1012; }
+  .ph-range { font-family: var(--mono); font-size: 10px; color: var(--text3); margin-bottom: 1rem; }
+  .ph-chart-wrap { height: 160px; margin-bottom: 1rem; }
+  .ph-history { display: flex; flex-direction: column; gap: 0; }
+  .ph-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 0.5px solid var(--border); font-family: var(--mono); font-size: 12px; }
+  .ph-row:last-child { border-bottom: none; }
+  .ph-value-ok { color: var(--green); font-size: 15px; font-weight: 500; }
+  .ph-value-warn { color: var(--orange); font-size: 15px; font-weight: 500; }
+  .ph-date { color: var(--text3); font-size: 11px; }
+
+  /* CALENDAR */
+  .calendar { width: 100%; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .cal-nav { font-family: var(--mono); font-size: 11px; color: var(--text2); background: var(--bg3); border: 0.5px solid var(--border2); padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: color 0.15s; }
+  .cal-nav:hover { color: var(--text); }
+  .cal-month { font-size: 16px; font-weight: 400; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-day-name { font-family: var(--mono); font-size: 10px; color: var(--text3); text-align: center; padding: 4px 0; letter-spacing: 0.08em; }
+  .cal-day { min-height: 52px; background: var(--bg3); border-radius: 6px; padding: 6px; position: relative; border: 0.5px solid transparent; }
+  .cal-day.today { border-color: var(--green); }
+  .cal-day.other-month { opacity: 0.3; }
+  .cal-day-num { font-family: var(--mono); font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .cal-day.today .cal-day-num { color: var(--green); }
+  .cal-dots { display: flex; flex-wrap: wrap; gap: 2px; }
+  .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* COMBINED LOG */
+  .log-table { width: 100%; }
+  .log-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .log-row:last-child { border-bottom: none; }
+  .log-icon { font-size: 16px; flex-shrink: 0; }
+  .log-name { flex: 1; font-size: 13px; }
+  .log-date { font-family: var(--mono); font-size: 11px; color: var(--text3); flex-shrink: 0; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: var(--green); color: #0e1012; font-family: var(--mono); font-size: 12px; padding: 10px 20px; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 100; }
+  .toast.show { opacity: 1; }
+
+  .footer { margin-top: 2rem; padding-top: 1rem; border-top: 0.5px solid var(--border); font-family: var(--mono); font-size: 10px; color: var(--text3); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="farm-label">Gari farm systems</div>
+    <h1>🔧 Maintenance</h1>
+    <div class="status-row">
+      <div class="status-dot"></div>
+      <span class="status-text" id="last-updated">Loading...</span>
+    </div>
+  </div>
+  <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary">
+  <div class="summary-card">
+    <div class="summary-label">All OK</div>
+    <div class="summary-value" id="count-ok" style="color:var(--green)">—</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Due Soon</div>
+    <div class="summary-value" id="count-soon" style="color:var(--yellow)">—</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Overdue</div>
+    <div class="summary-value" id="count-overdue" style="color:var(--red)">—</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">Tasks Total</div>
+    <div class="summary-value" id="count-total" style="color:var(--text2)">—</div>
+  </div>
+</div>
+
+<!-- HARVEST -->
+<div class="card">
+  <div class="card-title">🫐 Harvest Countdown</div>
+  <div class="harvest-countdown" id="harvest-days">—</div>
+  <div class="harvest-label" id="harvest-label">Set your expected harvest date below</div>
+  <div class="harvest-input-row">
+    <input type="date" class="harvest-input" id="harvest-date-input">
+    <button class="harvest-set-btn" onclick="setHarvestDate()">Set Date</button>
+  </div>
+</div>
+
+<!-- MAINTENANCE TASKS -->
+<div class="section-label">Maintenance Schedule</div>
+<div class="tasks" id="tasks-container">
+  <div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding:1rem 0;">Loading tasks...</div>
+</div>
+
+<!-- pH LOG -->
+<div class="card">
+  <div class="card-title">🧪 pH Log <span style="font-family:var(--mono);font-size:10px;color:var(--text3);font-weight:300;margin-left:8px;">Ideal: 4.5 — 5.5</span></div>
+  <div class="ph-input-row">
+    <input type="number" class="ph-input" id="ph-input" placeholder="Enter pH e.g. 5.2" step="0.1" min="0" max="14">
+    <button class="ph-log-btn" onclick="logPH()">Log pH</button>
+  </div>
+  <div class="ph-chart-wrap">
+    <canvas id="ph-chart" role="img" aria-label="pH trend chart"></canvas>
+  </div>
+  <div class="ph-history" id="ph-history">
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text3);">No pH readings yet.</div>
+  </div>
+</div>
+
+<!-- CALENDAR -->
+<div class="card">
+  <div class="cal-header">
+    <button class="cal-nav" onclick="changeMonth(-1)">← Prev</button>
+    <div class="cal-month" id="cal-month-label">—</div>
+    <button class="cal-nav" onclick="changeMonth(1)">Next →</button>
+  </div>
+  <div class="cal-grid" id="cal-day-names"></div>
+  <div style="height:6px"></div>
+  <div class="cal-grid" id="cal-grid"></div>
+  <div style="margin-top:12px; display:flex; gap:16px; flex-wrap:wrap;">
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block"></span>Task done</span>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--yellow);display:inline-block"></span>pH log</span>
+    <span style="font-family:var(--mono);font-size:10px;color:var(--text3);display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--purple);display:inline-block"></span>Harvest</span>
+  </div>
+</div>
+
+<!-- COMBINED LOG -->
+<div class="card">
+  <div class="card-title">📋 Activity Log</div>
+  <div class="log-table" id="activity-log">
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text3);">Loading...</div>
+  </div>
+</div>
+
+<div class="footer">
+  <span>Gari farm — maintenance tracker</span>
+  <span id="footer-date"></span>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://fhyfckbapnboxiqnvilc.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoeWZja2JhcG5ib3hpcW52aWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzNTE1NDUsImV4cCI6MjA5NDkyNzU0NX0.4-oYgAaaAVnGrOZbJBOggHdbnqsICMHjjjsXqiz_6Hw';
+const HEADERS = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+  'Prefer': 'return=representation'
+};
+
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let allLogs = [];
+let allPH = [];
+let phChartInst = null;
+
+// =============================================
+// SUPABASE HELPERS
+// =============================================
+async function sbGet(table, query='') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: HEADERS });
+  return res.json();
+}
+async function sbPatch(table, id, data) {
+  await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'PATCH', headers: HEADERS, body: JSON.stringify(data)
+  });
+}
+async function sbInsert(table, data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST', headers: HEADERS, body: JSON.stringify(data)
+  });
+  return res.json();
+}
+
+// =============================================
+// UTILS
+// =============================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+function today() { return new Date().toISOString().split('T')[0]; }
+function addDays(dateStr, days) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+function daysDiff(dateStr) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const target = new Date(dateStr); target.setHours(0,0,0,0);
+  return Math.round((target - now) / 86400000);
+}
+function formatDate(dateStr) {
+  if (!dateStr) return 'Never';
+  return new Date(dateStr).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+function formatDateTime(str) {
+  return new Date(str).toLocaleDateString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function getBadge(diff) {
+  if (diff > 3) return { cls:'badge-ok', label:`In ${diff} days` };
+  if (diff > 0) return { cls:'badge-soon', label:`In ${diff} day${diff===1?'':'s'}` };
+  if (diff === 0) return { cls:'badge-due', label:'Due today' };
+  return { cls:'badge-overdue', label:`${Math.abs(diff)}d overdue` };
+}
+function getTaskIcon(name) {
+  if (name.includes('Filter')) return '🔽';
+  if (name.includes('Irrigation') || name.includes('Hose')) return '🚿';
+  if (name.includes('pH')) return '🧪';
+  if (name.includes('Oil')) return '🛢';
+  if (name.includes('Blade') || name.includes('Sharpen')) return '⚙️';
+  if (name.includes('Mow')) return '🚜';
+  return '🔧';
+}
+
+// =============================================
+// LOAD ALL
+// =============================================
+async function loadAll() {
+  document.getElementById('last-updated').textContent = 'Loading...';
+  const [tasks, logs, ph] = await Promise.all([
+    sbGet('maintenance_tasks', 'order=next_due.asc'),
+    sbGet('maintenance_log', 'order=done_at.desc&limit=50'),
+    sbGet('ph_log', 'order=logged_at.desc&limit=30')
+  ]);
+  allLogs = Array.isArray(logs) ? logs : [];
+  allPH = Array.isArray(ph) ? ph : [];
+
+  buildSummary(tasks);
+  buildTasks(tasks, allLogs);
+  buildPHSection(allPH);
+  buildCalendar(allLogs, allPH);
+  buildActivityLog(allLogs, allPH);
+  loadHarvest();
+
+  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  document.getElementById('footer-date').textContent = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+}
+
+// =============================================
+// SUMMARY
+// =============================================
+function buildSummary(tasks) {
+  let ok=0, soon=0, overdue=0;
+  (tasks||[]).forEach(t => {
+    const diff = daysDiff(t.next_due || today());
+    if (diff > 3) ok++;
+    else if (diff > 0) soon++;
+    else overdue++;
+  });
+  document.getElementById('count-ok').textContent = ok;
+  document.getElementById('count-soon').textContent = soon;
+  document.getElementById('count-overdue').textContent = overdue;
+  document.getElementById('count-total').textContent = (tasks||[]).length;
+}
+
+// =============================================
+// TASKS
+// =============================================
+function buildTasks(tasks, logs) {
+  const container = document.getElementById('tasks-container');
+  if (!tasks || tasks.length === 0) {
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);padding:1rem 0;">No tasks found.</div>';
+    return;
+  }
+  container.innerHTML = tasks.map(task => {
+    const nextDue = task.next_due || today();
+    const diff = daysDiff(nextDue);
+    const badge = getBadge(diff);
+    const lastDoneText = task.last_done ? formatDate(task.last_done) : 'Never done';
+    let progress = 100;
+    if (task.last_done) {
+      const elapsed = -daysDiff(task.last_done);
+      progress = Math.min(100, Math.round((elapsed / task.interval_days) * 100));
+    }
+    const progressColor = diff > 3 ? 'var(--green)' : diff > 0 ? 'var(--yellow)' : 'var(--red)';
+
+    // Task specific history
+    const taskHistory = logs.filter(l => l.task_id === task.id).slice(0, 5);
+    const historyHTML = taskHistory.length > 0
+      ? taskHistory.map(l => `<div class="history-row"><span>✅ Done</span><span>${formatDate(l.done_at)}</span></div>`).join('')
+      : '<div class="history-row"><span style="color:var(--text3)">No history yet</span></div>';
+
+    return `
+    <div class="task-card">
+      <div class="task-top">
+        <div class="task-icon">${getTaskIcon(task.task_name)}</div>
+        <div class="task-info">
+          <div class="task-name">${task.task_name.replace(/^\S+\s/, '')}</div>
+          <div class="task-meta">Every ${task.interval_days} days &nbsp;·&nbsp; Last: ${lastDoneText}</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${progress}%;background:${progressColor}"></div></div>
+          <span class="task-history-toggle" onclick="toggleHistory('hist-${task.id}', this)">▸ View history</span>
+        </div>
+        <div class="task-right">
+          <span class="badge ${badge.cls}">${badge.label}</span>
+          <button class="done-btn" onclick="markDone(${task.id}, ${task.interval_days}, '${task.task_name}', this)">✅ Done</button>
+        </div>
+      </div>
+      <div class="task-history" id="hist-${task.id}">${historyHTML}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleHistory(id, el) {
+  const h = document.getElementById(id);
+  h.classList.toggle('open');
+  el.textContent = h.classList.contains('open') ? '▾ Hide history' : '▸ View history';
+}
+
+async function markDone(id, intervalDays, taskName, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+  const todayStr = today();
+  const nextDue = addDays(todayStr, intervalDays);
+  await sbPatch('maintenance_tasks', id, { last_done: todayStr, next_due: nextDue });
+  await sbInsert('maintenance_log', { task_id: id, task_name: taskName, done_at: todayStr });
+  showToast('✅ Task marked as done!');
+  await loadAll();
+}
+
+// =============================================
+// HARVEST
+// =============================================
+function loadHarvest() {
+  const stored = localStorage.getItem('gari_harvest_date');
+  if (stored) renderHarvest(stored);
+}
+function renderHarvest(dateStr) {
+  const diff = daysDiff(dateStr);
+  const el = document.getElementById('harvest-days');
+  const label = document.getElementById('harvest-label');
+  document.getElementById('harvest-date-input').value = dateStr;
+  if (diff > 0) {
+    el.textContent = diff;
+    el.style.color = diff <= 14 ? 'var(--orange)' : 'var(--purple)';
+    label.textContent = `days until harvest — ${formatDate(dateStr)}`;
+  } else if (diff === 0) {
+    el.textContent = '🎉';
+    label.textContent = 'Harvest day! Enjoy your blueberries!';
+  } else {
+    el.textContent = Math.abs(diff);
+    el.style.color = 'var(--text2)';
+    label.textContent = `days since harvest — ${formatDate(dateStr)}`;
+  }
+}
+function setHarvestDate() {
+  const input = document.getElementById('harvest-date-input');
+  if (!input.value) return;
+  localStorage.setItem('gari_harvest_date', input.value);
+  renderHarvest(input.value);
+  showToast('🫐 Harvest date set!');
+  buildCalendar(allLogs, allPH);
+}
+
+// =============================================
+// pH
+// =============================================
+async function logPH() {
+  const input = document.getElementById('ph-input');
+  const val = parseFloat(input.value);
+  if (isNaN(val) || val < 0 || val > 14) { showToast('⚠️ Enter valid pH (0–14)'); return; }
+  await sbInsert('ph_log', { ph_value: val, logged_at: new Date().toISOString() });
+  // Mark pH task done
+  const tasks = await sbGet('maintenance_tasks', 'task_name=like.*pH*');
+  if (tasks && tasks.length > 0) {
+    const t = tasks[0];
+    await sbPatch('maintenance_tasks', t.id, { last_done: today(), next_due: addDays(today(), t.interval_days) });
+    await sbInsert('maintenance_log', { task_id: t.id, task_name: t.task_name, done_at: today() });
+  }
+  input.value = '';
+  showToast('🧪 pH logged!');
+  await loadAll();
+}
+
+function buildPHSection(ph) {
+  const container = document.getElementById('ph-history');
+  if (!ph || ph.length === 0) {
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);">No pH readings yet.</div>';
+    buildPHChart([]);
+    return;
+  }
+  container.innerHTML = ph.slice(0, 8).map(log => {
+    const val = parseFloat(log.ph_value);
+    const isOk = val >= 4.5 && val <= 5.5;
+    const cls = isOk ? 'ph-value-ok' : 'ph-value-warn';
+    const note = isOk ? '✅ Good' : val < 4.5 ? '⚠️ Too acidic' : '⚠️ Too alkaline';
+    return `<div class="ph-row">
+      <span class="${cls}">pH ${val.toFixed(1)}</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--text2)">${note}</span>
+      <span class="ph-date">${formatDateTime(log.logged_at)}</span>
+    </div>`;
+  }).join('');
+  buildPHChart(ph);
+}
+
+function buildPHChart(ph) {
+  const reversed = [...ph].reverse().slice(-10);
+  const labels = reversed.map(p => new Date(p.logged_at).toLocaleDateString('en-GB', { day:'numeric', month:'short' }));
+  const values = reversed.map(p => parseFloat(p.ph_value));
+  if (phChartInst) phChartInst.destroy();
+  phChartInst = new Chart(document.getElementById('ph-chart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'pH',
+        data: values,
+        borderColor: '#facc15',
+        backgroundColor: 'rgba(250,204,21,0.06)',
+        tension: 0.4,
+        fill: false,
+        pointRadius: 5,
+        pointBackgroundColor: values.map(v => v >= 4.5 && v <= 5.5 ? '#4ade9a' : '#e84a4a'),
+        pointBorderColor: '#0e1012',
+        pointBorderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, spanGaps: true,
+      plugins: {
+        legend: { display: false },
+        annotation: {}
+      },
+      scales: {
+        x: { ticks: { color:'#555350', font:{family:'DM Mono',size:10} }, grid:{display:false}, border:{color:'rgba(255,255,255,0.07)'} },
+        y: {
+          min: 3.5, max: 7,
+          ticks: { color:'#555350', font:{family:'DM Mono',size:10}, callback: v => 'pH '+v },
+          grid: { color:'rgba(255,255,255,0.05)' },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+// =============================================
+// CALENDAR
+// =============================================
+function changeMonth(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  buildCalendar(allLogs, allPH);
+}
+
+function buildCalendar(logs, ph) {
+  const monthLabel = new Date(calYear, calMonth, 1).toLocaleDateString('en-GB', { month:'long', year:'numeric' });
+  document.getElementById('cal-month-label').textContent = monthLabel;
+
+  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  document.getElementById('cal-day-names').innerHTML = dayNames.map(d =>
+    `<div class="cal-day-name">${d}</div>`
+  ).join('');
+
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay = new Date(calYear, calMonth + 1, 0);
+  let startDow = firstDay.getDay(); // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1; // Make Mon=0
+
+  const todayStr = today();
+  const harvestDate = localStorage.getItem('gari_harvest_date');
+
+  // Build event map by date
+  const eventMap = {};
+  logs.forEach(l => {
+    if (!eventMap[l.done_at]) eventMap[l.done_at] = [];
+    eventMap[l.done_at].push({ type: 'task', name: l.task_name });
+  });
+  ph.forEach(p => {
+    const d = p.logged_at.split('T')[0];
+    if (!eventMap[d]) eventMap[d] = [];
+    eventMap[d].push({ type: 'ph' });
+  });
+  if (harvestDate) {
+    if (!eventMap[harvestDate]) eventMap[harvestDate] = [];
+    eventMap[harvestDate].push({ type: 'harvest' });
+  }
+
+  const cells = [];
+  // Padding days before
+  for (let i = 0; i < startDow; i++) {
+    const d = new Date(firstDay); d.setDate(d.getDate() - (startDow - i));
+    cells.push({ date: d.toISOString().split('T')[0], num: d.getDate(), other: true });
+  }
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    cells.push({ date: dateStr, num: d, other: false });
+  }
+  // Padding after
+  const remaining = 7 - (cells.length % 7);
+  if (remaining < 7) {
+    for (let i = 1; i <= remaining; i++) {
+      const d = new Date(lastDay); d.setDate(d.getDate() + i);
+      cells.push({ date: d.toISOString().split('T')[0], num: d.getDate(), other: true });
+    }
+  }
+
+  document.getElementById('cal-grid').innerHTML = cells.map(cell => {
+    const isToday = cell.date === todayStr;
+    const events = eventMap[cell.date] || [];
+    const dots = events.map(e => {
+      const color = e.type === 'task' ? 'var(--green)' : e.type === 'ph' ? 'var(--yellow)' : 'var(--purple)';
+      return `<span class="cal-dot" style="background:${color}"></span>`;
+    }).join('');
+    return `<div class="cal-day ${isToday ? 'today' : ''} ${cell.other ? 'other-month' : ''}">
+      <div class="cal-day-num">${cell.num}</div>
+      <div class="cal-dots">${dots}</div>
+    </div>`;
+  }).join('');
+}
+
+// =============================================
+// ACTIVITY LOG
+// =============================================
+function buildActivityLog(logs, ph) {
+  const container = document.getElementById('activity-log');
+
+  const combined = [
+    ...logs.map(l => ({
+      date: new Date(l.done_at),
+      icon: getTaskIcon(l.task_name),
+      name: l.task_name.replace(/^\S+\s/, ''),
+      dateStr: formatDate(l.done_at)
+    })),
+    ...ph.map(p => ({
+      date: new Date(p.logged_at),
+      icon: '🧪',
+      name: `pH reading — ${parseFloat(p.ph_value).toFixed(1)} ${parseFloat(p.ph_value) >= 4.5 && parseFloat(p.ph_value) <= 5.5 ? '✅' : '⚠️'}`,
+      dateStr: formatDateTime(p.logged_at)
+    }))
+  ].sort((a, b) => b.date - a.date).slice(0, 20);
+
+  if (combined.length === 0) {
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:12px;color:var(--text3);">No activity yet — mark tasks as done to see history.</div>';
+    return;
+  }
+
+  container.innerHTML = combined.map(item => `
+    <div class="log-row">
+      <span class="log-icon">${item.icon}</span>
+      <span class="log-name">${item.name}</span>
+      <span class="log-date">${item.dateStr}</span>
+    </div>`
+  ).join('');
+}
+
+loadAll();
+</script>
+</body>
+</html>
